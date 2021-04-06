@@ -23,6 +23,7 @@ def scrape_imdb(url):
 
     # create "vectors"
     for j in range(0, len(movie_containers)):
+        print(j)
         
         if movie_containers[j].find('div', class_ = 'ratings-imdb-rating') is not None:
         
@@ -31,7 +32,7 @@ def scrape_imdb(url):
             imdb_rating.append(float(movie_containers[j].strong.text))
             #metascore_rating.append(int(movie_containers[i].find('span', class_ = 'metascore favorable').text))
             num_votes.append(int(movie_containers[j].find('span', attrs = {'name' : 'nv'}).text.replace(",", "")))
-            genre.append(movie_containers[0].find('span', attrs= {'class':'genre'}).get_text().replace('\n', ''))
+            genre.append(movie_containers[j].find('span', 'genre').contents[0].split(',', 1)[0].replace('\n', '').strip())
             film_rating.append(movie_containers[j].find('p').contents[1].text)
             director.append(movie_containers[j].find_all('p')[2].find('a').text)
             lead_actor.append(movie_containers[j].find_all('p')[2].find_all('a')[1].text)
@@ -129,71 +130,81 @@ m_2020 = pd.concat([m1, m2, m3, m4, m5, m6], ignore_index=True)
 
 movies2 = pd.concat([m_2017, m_2018, m_2019, m_2020], ignore_index=True)
 
+# cleaning data
+movies2['genre'] = movies2['genre'].str.split(',').str[0]
+
+
 # write out to folder
-movies2.to_csv(r'..\imdb_movies.csv', index = False)
+movies2.to_csv(r'C:\\Users\\abhis\\Documents\\Duke University\\IDS 793 Unifying Data Science\\unifying-data-science-2021-project team_9\\00_data\\imdb_movies.csv', index = False)
 
 
 
 
 ######################################################################################################################################################################################################
 
-# # soup
-# url = 'https://www.imdb.com/search/title/?release_date=2017-01-01,2017-12-31&sort=boxoffice_gross_us,desc'
-# page = requests.get(url)
-# soup = bs(page.content, 'html.parser')
-# movie_containers = soup.find_all('div', class_ = 'lister-item mode-advanced')
+# soup
+url = 'https://www.imdb.com/search/title/?release_date=2019-01-01,2019-12-31&sort=boxoffice_gross_us,desc&start=101&ref_=adv_nxt'
+page = requests.get(url)
+soup = bs(page.content, 'html.parser')
+movie_containers = soup.find_all('div', class_ = 'lister-item mode-advanced')
 
-# # scraping relevant columns
-# title = movie_containers[0].h3.a.text
-# year = movie_containers[0].h3.find('span', 'lister-item-year text-muted unbold').text.replace('(','').replace(')','')
-# imdb_rating = float(movie_containers[0].strong.text)
-# num_votes = int(movie_containers[0].find('span', attrs = {'name' : 'nv'}).text.replace(",", ""))
-# genre = movie_containers[0].find('p').contents[9].text.split(',', 1)[0].replace('\n', '')
-# film_rating = movie_containers[0].find('p').contents[1].text
-# director = movie_containers[0].find_all('p')[2].find('a').text
-# lead_actor = movie_containers[0].find_all('p')[2].find_all('a')[1].text
 
-# # init lists
-# titles = []
-# year = []
-# imdb_rating = []
-# num_votes = []
-# genre = []
-# film_rating = []
-# director = []
-# lead_actor = []
+j = 23
 
-# # create "vectors"
-# for i in range(0, len(movie_containers)):
-#     titles.append(movie_containers[i].h3.a.text)
-#     year.append(movie_containers[i].h3.find('span', 'lister-item-year text-muted unbold').text.replace('(','').replace(')',''))
-#     imdb_rating.append(float(movie_containers[i].strong.text))
-#     #metascore_rating.append(int(movie_containers[i].find('span', class_ = 'metascore favorable').text))
-#     num_votes.append(int(movie_containers[i].find('span', attrs = {'name' : 'nv'}).text.replace(",", "")))
-#     genre.append(movie_containers[i].find('p').contents[9].text.split(',', 1)[0].replace('\n', ''))
-#     film_rating.append(movie_containers[i].find('p').contents[1].text)
-#     director.append(movie_containers[i].find_all('p')[2].find('a').text)
-#     lead_actor.append(movie_containers[i].find_all('p')[2].find_all('a')[1].text)
-#     pass
+# scraping relevant columns
+title = movie_containers[j].h3.a.text
+year = movie_containers[j].h3.find('span', 'lister-item-year text-muted unbold').text.replace('(','').replace(')','')
+imdb_rating = float(movie_containers[j].strong.text)
+num_votes = int(movie_containers[j].find('span', attrs = {'name' : 'nv'}).text.replace(",", ""))
+genre = movie_containers[j].find('span', 'genre').contents[0].split(',', 1)[0].replace('\n', '').strip()
+#genre = movie_containers[0].find('p').contents[9].text.split(',', 1)[0].replace('\n', '') # issue for some cases
 
-# # convert into dataframe
-# movies = pd.DataFrame({
-#     'titles' : titles,
-#     'year' : year,
-#     'imdb_rating' : imdb_rating,
-#     'num_votes' : num_votes,
-#     'genre' : genre,
-#     'film_rating' : film_rating,
-#     'director' : director,
-#     'lead_actor' : lead_actor
-# })
+film_rating = movie_containers[j].find('span', 'certificate').contents[1].text
+film_rating = movie_containers[j].find('p').contents[1].text
+director = movie_containers[j].find_all('p')[2].find('a').text
+lead_actor = movie_containers[j].find_all('p')[2].find_all('a')[1].text
+
+# init lists
+titles = []
+year = []
+imdb_rating = []
+num_votes = []
+genre = []
+film_rating = []
+director = []
+lead_actor = []
+
+# create "vectors"
+for i in range(0, len(movie_containers)):
+    titles.append(movie_containers[i].h3.a.text)
+    year.append(movie_containers[i].h3.find('span', 'lister-item-year text-muted unbold').text.replace('(','').replace(')',''))
+    imdb_rating.append(float(movie_containers[i].strong.text))
+    #metascore_rating.append(int(movie_containers[i].find('span', class_ = 'metascore favorable').text))
+    num_votes.append(int(movie_containers[i].find('span', attrs = {'name' : 'nv'}).text.replace(",", "")))
+    genre.append(movie_containers[i].find('p').contents[9].text.split(',', 1)[0].replace('\n', ''))
+    film_rating.append(movie_containers[i].find('p').contents[1].text)
+    director.append(movie_containers[i].find_all('p')[2].find('a').text)
+    lead_actor.append(movie_containers[i].find_all('p')[2].find_all('a')[1].text)
+    pass
+
+# convert into dataframe
+movies = pd.DataFrame({
+    'titles' : titles,
+    'year' : year,
+    'imdb_rating' : imdb_rating,
+    'num_votes' : num_votes,
+    'genre' : genre,
+    'film_rating' : film_rating,
+    'director' : director,
+    'lead_actor' : lead_actor
+})
 
 
 
     
-# def ss(year, i):
-#     url = 'https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31&sort=boxoffice_gross_us,desc&start=%s&ref_=adv_prv' % (year, year, 51 + (50 * (i - 2)))
-#     return url
+def ss(year, i):
+    url = 'https://www.imdb.com/search/title/?release_date=%s-01-01,%s-12-31&sort=boxoffice_gross_us,desc&start=%s&ref_=adv_prv' % (year, year, 51 + (50 * (i - 2)))
+    return url
 
-# ss(2017,2)
-# 51 + (50 * (i - 2))    
+ss(2017,2)
+51 + (50 * (i - 2))    
