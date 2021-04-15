@@ -31,18 +31,17 @@ In the 70s Bruce Lee auditioned to be in the show Kung Fu. Set in the American W
 
 Casting minority actors for lead roles in movies is beneficial for movies in the Action genre and does not cause any statistically significant loss or gain in other genres. This report proves this by scraping movie data from the IMDB and boxofficemojo.com, pruning the data by matching similar movies with POC and non-POC lead actors, then running a linear regression to find any evidence of causality. By looking at movies with similar release dates, genres, and more it was possible to isolate the effect of a lead actor's POC status. In all cases, an actor belonging to a racial minority is not a disadvantage to a movie's revenue and is proven to be a significant positive in Action movies.
 
-
 ## Scraping
 
 Our data for this report was gathered by a process called Scraping.
 
-Web scraping or web harvesting, is the process of using a bot or web crawler to extract content and data from a website, rather than manually copying and pasting results. Web scraping extracts the HTML code and the data stored in a database, and then can recreate the website content elsewhere. Essentially, data from websites is automatically and precedurally extracted according to specification.
+Web scraping or web harvesting, is the process of using a bot or web crawler to extract content and data from a website, rather than manually copying and pasting results. Web scraping extracts the HTML code and the data stored in a database, and then can recreate the website content elsewhere. Essentially, data from websites is automatically and procedurally extracted according to specification.
 
-For our purposes, we decided to scrape 2 websites, box office mojo and  IMDB. For box office mojo, we collected four years’ worth of top domestic box office films in the United States from 2017 to 2020. The relevant data that we searched for was title, gross sales, release date, revenue, and lead actor among other variables. For IMDB, we had a similar approach, but focused on ratings and movie distributor. Lastly for the race data, we were able to find lists on IMDB of actors and their ethnicity
+For our purposes, we decided to scrape 2 websites, box office mojo and  IMDB. For box office mojo, we collected four years’ worth of top domestic box office films in the United States from 2017 to 2020. The relevant data that we searched for was title, gross sales, release date, revenue, and lead actor among other variables. For IMDB, we had a similar approach, but focused on ratings and movie distributor. Lastly for the race data, we were able to find lists on IMDB of actors and their ethnicity.
 
-Once the three data sets were sourced, some level of processing was needed to clean the variables in the dataset and re-casted to an appropriate data type. Lastly, we then merged the box office mojo and imdb datasets by movie title, and then merged that newly created set with the race data set by lead actor name.
+Once the three data sets were sourced, some level of processing was needed to clean the variables in the dataset and recast to an appropriate data type. Lastly, we then merged the box office mojo and imdb datasets by movie title, and then merged that newly created set with the race data set by lead actor name.
 
-The full data results from this step is available on github at
+The full data results from this step is available on Github [(link)](https://github.com/MIDS-at-Duke/unifying-data-science-2021-project-team_9/tree/main/00_data).
 
 To make sure results were accurate, we checked and cleaned the data manually. Removing any incomplete or repeating data then checking whether actor-race matches were accurate. The final dataset is then sent to analysis below.
 
@@ -83,7 +82,6 @@ In the end though, whether the lead is a POC or what year it was made does not s
 
 However, the data isn't well-balanced between POC and non-POC lead actors which we can see below:
 
-
 ```{r, echo=FALSE}
 #table_race <- table(data$Race)
 kable(table(data$Race), col.names = c("Race","Count"))
@@ -118,9 +116,23 @@ However, the number of theaters a movie opened in can be really indicative of th
 To use this feature, which we believe to be important as mentioned, we need to bin them by separating movies into groups.  A histogram can help us find these bins:
 
 ```{r, echo=FALSE}
-hist(data$opening_theaters,xlab="Opening Theater #",
-main = paste("Histogram of Movies' Opening Theaters"), labels = TRUE)
+#hist(data$opening_theaters,xlab="Opening Theater #",
+#main = paste("Histogram of Movies' Opening Theaters"), labels = TRUE)
+```
 
+
+```{r, echo=FALSE}
+options(warn=-1)
+binsize = 250
+ggplot(data=data, aes(x=opening_theaters)) +
+  labs(title=("Histogram of # of Theaters on Opening Day (bin=250)"),
+       x = "Number of Theaters",
+       y = "Count of Movies") +
+  geom_histogram(binwidth = binsize, color="black", fill="white") + 
+  stat_bin(binwidth=binsize, geom="text", aes(label=..count..), vjust=-0.5) +
+  scale_x_continuous(limits = c(binsize/2,binsize*19.5), expand=c(0,0), breaks = scales::pretty_breaks(10)) +
+  theme_minimal()
+options(warn=0)
 ```
 
 Using a histogram we can see that we can group movies by their opening theaters. Here, the choice for the size of the bin matters where there is a trade-off between how informative a bin is and how easy it will be to find matches. We decided to use movies with under 2000, 2500, 3000 then so on in 250-sized increments. These values allow for at least 40 or so movies in each bin which allows for good matching chances without losing the predictive power of the variable.
@@ -135,16 +147,27 @@ for (y in c(4250,4000,3750,3500,3250,3000,2500,2000)) {
 #table(data$OPT)
 kable(table(data$OPT), col.names = c("Opening Theaters","Count"))
 ```
+
 ### IMDB Ratings
 
 We can do the same for their IMDB ratings. These ratings hopefully will account for the quality of the movie enough to be a proxy for a movie's long-term box office success.
 
-
 ```{r, echo=FALSE}
-hist((data$imdb_rating),xlab="IMDB Rating",main = paste("Histogram of Movies IMDB Ratings"), labels = TRUE)
+#hist((data$imdb_rating),xlab="IMDB Rating",main = paste("Histogram of Movies IMDB Ratings"), labels = TRUE)
+```
+```{r,echo=FALSE}
+binsize = .5
+ggplot(data=data, aes(x=imdb_rating)) +
+  labs(title=("Histogram of IMDB Ratings of Movies from 2017-2019 (bin=0.5)"),
+       x = "IMDB Rating",
+       y = "Count of Movies") +
+  geom_histogram(binwidth = binsize, color="black", fill="white") + 
+  stat_bin(binwidth=binsize, geom="text", aes(label=..count..), vjust=-0.5) +
+  scale_x_continuous(limits = c(binsize/2,binsize*18.5), expand=c(0,0), breaks = scales::pretty_breaks(10)) +
+  theme_minimal()
 ```
 
-IMDB ratings seem very close to a normal distribution around 6.5 or so. This means that if we round to whole numbers, most values will be 6 or 7 and the rest will be in tails of 8+ and less than 5. To make effective use of these, we can separate bins within one standard deviation from those beyond, thus achieving bins related to bad, medium, and great movies. One standard deviation in the IMDB Ratings is .94, meaning that movies within around 5.5 and 7.5 are within a standard deviation. To bin these movies, we can round their IMDB ratings to the enarest whole number, bin 6's and 7's, and then bin those above and beyond this range.
+IMDB ratings seem very close to a normal distribution around 6.5 or so. This means that if we round to whole numbers, most values will be 6 or 7 and the rest will be in tails of 8+ and less than 5. To make effective use of these, we can separate bins within one standard deviation from those beyond, thus achieving bins related to bad, medium, and great movies. One standard deviation in the IMDB Ratings is .94, meaning that movies within around 5.5 and 7.5 are within a standard deviation. To bin these movies, we can round their IMDB ratings to the nearest whole number, bin 6's and 7's, and then bin those above and beyond this range.
 
 
 ```{r, echo=FALSE}
@@ -191,8 +214,6 @@ kable(table(m.data$Race), col.names = c("Race","Count"))
 ```
 
 Our original data had 495 movies pre-match, after matching we have 126 movies.  While POC-led movies are still around 39.6% of the data, we have eliminated movies that don't share similarities and potentially increased the visibility of the effect we are looking for. We can visualize the dataset before and after matching in the same graph:
-
-
 
 ```{r, echo=FALSE}
 library(gridExtra)
