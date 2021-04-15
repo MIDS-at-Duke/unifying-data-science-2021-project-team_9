@@ -10,7 +10,17 @@ fig_height: 4
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=TRUE)
+library(ggplot2)
+# load package
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(parameters)
+library(easystats)
+library(htmltools)
+library(gt)
+library(knitr)
 ```
 
 ## Abstract for Class
@@ -42,23 +52,29 @@ To make sure results were accurate, we checked and cleaned the data manually. Re
 data<-read.csv("../00_data/full_data_manualfix.csv")
 ```
 
-
 A linear regression can be an effective way to estimate the effect of a certain feature, like whether the lead actor is of a minority race or not. We can isolate the effect it can have on an outcome like a movie's gross revenue by using regression and accounting for other variables to make sure we isolate the effect. The way this happens is that through statistics, a linear regression can assign weights to variables to try to predict a movie's gross revenue the best it can. In these regressions, it is also possible to mathematically calculate whether we are sure an effect exists, a process summarized by the displayed p-score. If a p-score is above 0.05, we say that we aren't sure if the effect is statistically significant. If something is statistically significant, we are assuming that the resulting coefficient is not a random occurrence but can be attributed to a cause.
 
 In other words, if we want to see if a racial minority lead actor affects gross revenue, then we can check whether the variable that accounts for POC status has a p-score of less than 0.05.
 
 Let's begin by running a regression on the data we have scraped and cleaned. Firstly let's only use the Race variable:
 
-
-```{r}
-summary(lm(gross~Race,data=data))
+```{r, echo=FALSE}
+#summary(lm(gross~Race,data=data))
+model <- lm(gross~Race,data=data)
+mp <- model_parameters(model)
+print_md(mp)
 ```
+
 The print out above shows that the regression thinks that an actor being a POC, despite a negative coefficient, is not statistically significant (p-score [Pr(>|t|) ] above 0.05). The model considers a baseline (Intercept) then adds the coefficients to it; this makes the baseline a non-POC lead and the RacePOC coefficient being the calculated difference between them. Since the effect is not mathematically proven to not be random, thus having a low p-score, it seems that an actor being a POC has no significant effect if considered as the only variable in a regression.
 
 However, we must also consider the many other variables we have, adding other variables could clarify the effect and isolate it further. Let's try a new regression with a few more variables.
 
-```{r}
-summary(lm(gross~Race+year+genre +Male+opening_theaters,data=data))
+```{r, echo=FALSE}
+#summary(lm(gross~Race+year+genre +Male+opening_theaters,data=data))
+
+model <- lm(gross~Race+year+genre +Male+opening_theaters,data=data)
+mp <- model_parameters(model)
+print_md(mp)
 ```
 
 What we're looking at here is a baseline or intercept of White female lead actors in Action movies in the year 2017 with no opening theaters (an illogical but mathematically fine assumption since we correct it later). The coefficients modify the expected gross revenue of a movie depending on their characteristics. What we see here is that there is a clearly significant difference between Action movies and other genres, where Action movies tend to make more money. This is also true for male-led movies, where we see a larger gross revenue effect. We also included the number of opening theaters for the movie, which should relate to how large the movie's production is, and we see that movies launched on more theaters make more revenue. 
@@ -68,14 +84,14 @@ In the end though, whether the lead is a POC or what year it was made does not s
 However, the data isn't well-balanced between POC and non-POC lead actors which we can see below:
 
 
-```{r}
-table(data$Race)
+```{r, echo=FALSE}
+#table_race <- table(data$Race)
+kable(table(data$Race), col.names = c("Race","Count"))
 ```
 
 POC-led movies are only 106 movies or around 21.4% of the data. If we plot these movies using their IMDB Ratings and their Gross Revenue, we can see that non-POC movies occupy more space.
 
-```{r}
-library(ggplot2)
+```{r, echo=FALSE}
 p1<-ggplot(data, aes(x=imdb_rating, y=gross, color=Race)) +
   geom_point(size=2.8,alpha=.55)+ labs(title=("Movie Gross x Rating")) +
   xlab("IMDB Rating")+ylab("Gross Revenue (log10 scale)") +
@@ -101,33 +117,37 @@ However, the number of theaters a movie opened in can be really indicative of th
 
 To use this feature, which we believe to be important as mentioned, we need to bin them by separating movies into groups.  A histogram can help us find these bins:
 
-```{r}
-hist(data$opening_theaters,xlab="Opening Theater #",main = paste("Histogram of Movies' Opening Theaters"), labels = TRUE)
+```{r, echo=FALSE}
+hist(data$opening_theaters,xlab="Opening Theater #",
+main = paste("Histogram of Movies' Opening Theaters"), labels = TRUE)
 
 ```
+
 Using a histogram we can see that we can group movies by their opening theaters. Here, the choice for the size of the bin matters where there is a trade-off between how informative a bin is and how easy it will be to find matches. We decided to use movies with under 2000, 2500, 3000 then so on in 250-sized increments. These values allow for at least 40 or so movies in each bin which allows for good matching chances without losing the predictive power of the variable.
 
-```{r}
+```{r, echo=FALSE}
 data$OPT<-"<1000"
 data[data$opening_theaters>=4250,"OPT"]<-">4250"
 for (y in c(4250,4000,3750,3500,3250,3000,2500,2000)) {
   data[data$opening_theaters<y,"OPT"]<-paste("<",y)
 }
 
-table(data$OPT)
+#table(data$OPT)
+kable(table(data$OPT), col.names = c("Opening Theaters","Count"))
 ```
 ### IMDB Ratings
 
 We can do the same for their IMDB ratings. These ratings hopefully will account for the quality of the movie enough to be a proxy for a movie's long-term box office success.
 
 
-```{r}
+```{r, echo=FALSE}
 hist((data$imdb_rating),xlab="IMDB Rating",main = paste("Histogram of Movies IMDB Ratings"), labels = TRUE)
 ```
+
 IMDB ratings seem very close to a normal distribution around 6.5 or so. This means that if we round to whole numbers, most values will be 6 or 7 and the rest will be in tails of 8+ and less than 5. To make effective use of these, we can separate bins within one standard deviation from those beyond, thus achieving bins related to bad, medium, and great movies. One standard deviation in the IMDB Ratings is .94, meaning that movies within around 5.5 and 7.5 are within a standard deviation. To bin these movies, we can round their IMDB ratings to the enarest whole number, bin 6's and 7's, and then bin those above and beyond this range.
 
 
-```{r}
+```{r, echo=FALSE}
 data$IMDB<-0
 for (y in seq(1,10,.5)) {
   data[round(data$imdb_rating)==y,"IMDB"]<-y
@@ -137,8 +157,11 @@ data$IMDBbin<-"5-"
 data[round(data$imdb_rating)==6,"IMDBbin"]<-"6/7"
 data[round(data$imdb_rating)==7,"IMDBbin"]<-"6/7"
 data[round(data$imdb_rating)>7,"IMDBbin"]<-"8+"
-table(data$IMDBbin)
+
+#table(data$IMDBbin)
+kable(table(data$IMDBbin), col.names = c("IMDB Rating","Count"))
 ```
+
 Using these four simple bins should be enough to isolate the effect of extraordinarily good and bad movies from the middle of the pack. 8+ movies are one standard deviation higher in rating and 5- are one lower. 
 
 ### Exact Matching
@@ -148,7 +171,6 @@ We can now finally start matching movies, where we can create subclasses of movi
 To do this, we use an R Package called MatchIt. There are several ways to match data, but the method we have been referring to is called Exact matching. If there is even a slight difference then a match won't be found, this is what made binning the variables so important. MatchIt creates subclasses that contain movies with the same binned variables and drops any that don't have both movies with POC and movies with non-POC lead actors. This means that we are not matching in pairs, but rather creating groups of movies and removing any outliers.
 
 Let's run MatchIt and see how our data set changes.
-
 
 ```{r}
 library(MatchIt)
@@ -160,17 +182,19 @@ m.out <- matchit(treat ~ year+genre+OPT+film_rating+Male+IMDBbin,
 m.data <- match.data(m.out)
 ```
 
-```{r}
+```{r, echo=FALSE}
 nrow(data)
 
 nrow(m.data)
-table(m.data$Race)
+#table(m.data$Race)
+kable(table(m.data$Race), col.names = c("Race","Count"))
 ```
+
 Our original data had 495 movies pre-match, after matching we have 126 movies.  While POC-led movies are still around 39.6% of the data, we have eliminated movies that don't share similarities and potentially increased the visibility of the effect we are looking for. We can visualize the dataset before and after matching in the same graph:
 
 
 
-```{r}
+```{r, echo=FALSE}
 library(gridExtra)
 
 p2<-ggplot(m.data, aes(x=imdb_rating, y=gross, color=Race))+geom_point(size=2.8,alpha=.55)+ labs(title=("   Exact Match w/Bins"))+xlab("IMDB Rating")+ylab("Gross Revenue")+theme_minimal()+
@@ -179,6 +203,7 @@ p2<-ggplot(m.data, aes(x=imdb_rating, y=gross, color=Race))+geom_point(size=2.8,
         axis.text.y=element_blank())
 grid.arrange(p1+ theme(legend.position="none"),p2+ theme(legend.position="none"),ncol=2)
 ```
+
 It is clear how the data set is pruned and more balanced between the turquoise POC data and the reddish non-POC data. We obviously did not balance on Gross Revenue, which is our target variable to predict, but we have maintained the normal distribution of IMDB ratings which is evident by the same overall shape of both graphs.
 
 We can now once again run our regression but this time with matched data. Note that while we matched using bins, we can go back to using un-binned variables in our regression. We will also utilize the weights from our matching. These weights are meant to give power to certain movie data that is representative of the overall population. This method means that although we pruned a lot of movies, certain movies can be given additional weight so that they represent information from movies that were lost.
@@ -186,8 +211,11 @@ We can now once again run our regression but this time with matched data. Note t
 With that, let's run the regression:
 
 
-```{r}
-summary(lm(gross~Race+year+genre+opening_theaters+film_rating+Male+imdb_rating,data=m.data,weights=weights))
+```{r, echo=FALSE}
+model <- lm(gross~Race+year+genre+opening_theaters+film_rating+Male+imdb_rating,data=m.data,weights=weights)
+#summary(model)
+mp <- model_parameters(model)
+print_md(mp)
 ```
 
 After matching, we now see that a movie's lead actor being a POC has not only a statistically significant effect, but a positive one. As a reminder, our baseline is the gross revenue expected from White female lead actors in Action movies in the year 2017 with no opening theaters. This means that our matched data, which keeps movies that are more standard and similar to the usual release according to our data, shows that POC-led movies tend to make more money.
@@ -196,13 +224,16 @@ However, we can still create another variable to gain more insight into movies l
 
 That regression will come to this result:
 
-```{r}
-summary(lm(gross~Race+year+genre+genre:Race+opening_theaters+film_rating+Male+imdb_rating,data=m.data,weights=weights))
+```{r, echo=FALSE}
+model <- lm(gross~Race+year+genre+genre:Race+opening_theaters+film_rating+Male+imdb_rating,data=m.data,weights=weights)
+#summary(model)
+mp <- model_parameters(model)
+print_md(mp)
 ```
+
 The regression printout above now isolates the effect of POC actors in each genre, with the original RacePOC being the effect on Action movies. We still see a positive effect from POC lead actors but now with an even larger estimate and better p-value (thus more statistically significant). This is unsurprising given the success of action movies like Black Panther (Rest in peace King Boseman), Joker (Joaquin Phoenix of Puerto Rican descent) and others led by Dwayne "The Rock" Johnson, Jason Momoa, and Will Smith. However, in other genres we see that the effect of POC-leads is not statistically significant.
 
 We can safely assume that modern Action movies can benefit from minority leads while in other genres there is no proof that minority leads have an effect on box office performance. Either way, there is no evidence that minority actors can't carry movies as lead actors; if anything, they might be a great choice for action movies right now.
-
 
 ### Optimal Matching
 
@@ -214,7 +245,6 @@ By using exact matching, we utilized non-categorical data in a way that we tried
 
 Let's try running optimal matching to see what happens.
 
-
 ```{r}
 #Note: optimal matching naturally attempts 1:1 matching but can be modified to do 1:n
 
@@ -223,38 +253,46 @@ m.out2 <- matchit(treat ~ year+genre+opening_theaters+film_rating+Male+imdb_rati
 
 m.data2 <- match.data(m.out2)
 ```
+
 ```{r}
 #original
 paste("Original Data rows:",nrow(data))
 paste("Exact-matched Data rows:",nrow(m.data))
 paste("Optimal-matched Data rows:",nrow(m.data2))
 ```
+
 Optimal matching results in more rows than exact matching, this makes sense since exact matching is stricter in the pairs it can allow. Optimal data also balances perfectly between our treated variable (POC actors):
 
-```{r}
-table(m.data2$Race)
+```{r, echo=FALSE}
+#table(m.data2$Race)
+kable(table(m.data2$Race), col.names = c("Race","Count"))
 ```
-
 
 Let's look at the differences visually.
 
-
-```{r}
-p3<-ggplot(m.data2, aes(x=imdb_rating, y=gross, color=Race))+geom_point(size=2.8,alpha=.55)+ labs(title=("Optimal Match"))+xlab("IMDB Rating")+ylab("Gross Revenue")+theme_minimal()+ scale_y_continuous(trans='log10', labels=scales::dollar_format()) +
+```{r, echo=FALSE}
+p3<-ggplot(m.data2, aes(x=imdb_rating, y=gross, color=Race)) +
+  geom_point(size=2.8,alpha=.55)+ labs(title=("Optimal Match")) +
+  xlab("IMDB Rating")+ylab("Gross Revenue")+theme_minimal() +
+  scale_y_continuous(trans='log10', labels=scales::dollar_format()) +
   theme(axis.title.y=element_blank(),
         axis.text.y=element_blank())
 grid.arrange(p1+ theme(legend.position="none")+ labs(title=("Original Data")),p2+ theme(legend.position="none"),p3+ theme(legend.position="none"),ncol=3)
 ```
+
 Between Exact and Optimal there is an increase in amount of points while the overall shape is still maintained. Notably, non-POC movies matched seem to be more clustered at the bottom with two exceptions. Whether this clustering of lower-revenue non-POC movies will have an effect can be something we check with our regression.
 
 
-```{r}
+```{r, echo=FALSE}
 #Note: Since matches were maid 1:1 there is no weight output.
 
-summary(lm(gross~Race+year+genre+genre:Race+opening_theaters+film_rating+Male+imdb_rating,data=m.data2))
+model <- lm(gross~Race+year+genre+genre:Race+opening_theaters+film_rating+Male+imdb_rating,data=m.data2)
+#summary(model)
+mp <- model_parameters(model)
+print_md(mp)
 ```
-Once again, we see the same significant variables in the regression. Action movies with POC leads seem to generate more gross revenue while there is no statistically significant difference for the other genres.
 
+Once again, we see the same significant variables in the regression. Action movies with POC leads seem to generate more gross revenue while there is no statistically significant difference for the other genres.
 
 ## Conclusion
 
